@@ -57,7 +57,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("inception");
+  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
   function handleSelectMovie(id) {
@@ -76,14 +76,19 @@ export default function App() {
     setWatched(watched.filter((movie) => movie.imdbID !== id))
   }
 
+ 
+
+
   useEffect(
     function () {
+      const controller = new AbortController()
       async function fetchMovies() {
         try {
           setIsLoading(true);
           setError("");
           const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`
+            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+            {signal: controller.signal}
           );
 
           if (!res.ok)
@@ -92,9 +97,11 @@ export default function App() {
 
           if (data.Response === "False") throw new Error("Movie not found");
           setMovies(data.Search);
+          setError('');
         } catch (err) {
-          console.error(err.message);
-          setError(err.message);
+          console.log(err.message);
+          if(err.name !== "AbortError")
+          {setError(err.message);}
         } finally {
           setIsLoading(false);
         }
@@ -105,7 +112,12 @@ export default function App() {
         setError("");
         return;
       }
+      handleClosedMovie();
       fetchMovies();
+
+      return function() {
+        controller.abort();
+      }
     },
     [query]
   );
@@ -267,6 +279,20 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     onCloseMovie();
   }
 
+  useEffect(function(){
+    function callback(e)
+    {
+      if(e.code === 'Escape'){
+        onCloseMovie()
+      }
+    }
+    document.addEventListener('keydown', callback );
+
+    return function() {
+      document.removeEventListener('keydown', callback);
+    }
+  }, [onCloseMovie])
+
   useEffect(
     function () {
       async function getMovieDetails() {
@@ -282,6 +308,17 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
       getMovieDetails();
     },
     [selectedId]
+  );
+
+  useEffect(
+    function() {
+      if(!title) return;
+      document.title = `Movie | ${title}`;
+
+      return function() {
+        document.title = "usePopcorn";
+      }
+    },[title]
   );
 
   return (
